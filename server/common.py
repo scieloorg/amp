@@ -1,4 +1,4 @@
-from functools import wraps
+from functools import partial, wraps
 
 from sanic import Blueprint, response
 
@@ -61,3 +61,16 @@ def flatreq(fields):
             return await afunc(request=request, **kwargs)
         return wrapper
     return decorator
+
+
+def nestget(data, *path, default):
+    """Getter for data in nested dicts/lists/"itemgettables"."""
+    for key_or_index in path:
+        try:
+            data = data[key_or_index]
+        except (KeyError, IndexError, TypeError):
+            return default
+    return data
+
+
+nestget_list = partial(nestget, default=[])

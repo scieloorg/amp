@@ -2,7 +2,8 @@
 """Article Metadata Predictor"""
 from sanic import Sanic
 
-from . import common, w2v1
+import common
+import w2v1
 
 
 app = Sanic(__name__)

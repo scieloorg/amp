@@ -8,7 +8,7 @@ import joblib
 from sanic import Blueprint, response
 from unidecode import unidecode
 
-from .common import flatreq, nestget_list
+from common import flatreq, nestget_list
 
 
 bp = Blueprint(__name__, url_prefix='/w2v1')
@@ -73,7 +73,7 @@ model = Classifier(
 
 
 @bp.route("/", methods=["GET", "POST"])
-@flatreq(fields=["msg"])
+@flatreq(["msg"])
 async def from_msg(request, msg=""):
     return response.json({"country": model.predict(msg)})
 
@@ -95,7 +95,7 @@ def fields2msg(**kwargs):
 
 
 @bp.route("/fields", methods=["GET", "POST"])
-@flatreq(fields=FIELDS)
+@flatreq(FIELDS)
 async def from_fields(request, **kwargs):
     return response.json({"country": model.predict(fields2msg(**kwargs))})
 

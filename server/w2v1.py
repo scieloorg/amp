@@ -12,6 +12,23 @@ from .common import flatreq
 bp = Blueprint(__name__, url_prefix='/w2v1')
 
 TEXT_ONLY_REGEX = re.compile("[^a-zA-Z ]")
+FIELDS = [
+    "article_title",
+    "journal_title",
+    "publisher_name",
+    "addr_city",
+    "addr_state",
+    "aff_text",
+    "contrib_bio",
+    "contrib_prefix",
+    "contrib_name",
+    "contrib_surname",
+    "institution_orgdiv1",
+    "institution_orgdiv2",
+    "institution_orgname",
+    "institution_orgname_rewritten",
+    "institution_original",
+]
 
 
 def pre_normalize(name):
@@ -46,3 +63,25 @@ model = Classifier(
 @flatreq(fields=["msg"])
 async def from_msg(request, msg=""):
     return response.json({"country": model.predict(msg)})
+
+
+def fields2msg(**kwargs):
+    msg_parts = [kwargs.get(field, "") for field in FIELDS]
+    inst_names = [kwargs[field] for field in [
+                                    "institution_original",
+                                    "institution_orgname",
+                                    "institution_orgname_rewritten",
+                                ] if kwargs.get(field, "")]
+    if inst_names:
+        msg_parts.append(inst_names[-1])
+    if len(inst_names) == 1:
+        msg_parts.extend(inst_names * 2)
+    elif len(inst_names) == 2:
+        msg_parts.append(inst_names[-1])
+    return " ".join(msg_parts)
+
+
+@bp.route("/fields", methods=["GET", "POST"])
+@flatreq(fields=FIELDS)
+async def from_fields(request, **kwargs):
+    return response.json({"country": model.predict(fields2msg(**kwargs))})

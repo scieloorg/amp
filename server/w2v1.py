@@ -1,17 +1,24 @@
 """Word2Vec model 1"""
+import io
 import re
 
+from clea import Article
 from gensim.matutils import corpus2csc
 import joblib
 from sanic import Blueprint, response
 from unidecode import unidecode
 
-from .common import flatreq
+from .common import flatreq, nestget_list
 
 
 bp = Blueprint(__name__, url_prefix='/w2v1')
 
 TEXT_ONLY_REGEX = re.compile("[^a-zA-Z ]")
+CLEA_COMMON_PATHS = [
+    ("article_meta", 0, "article_title"),
+    ("journal_meta", 0, "journal_title"),
+    ("journal_meta", 0, "publisher_name"),
+]
 FIELDS = [
     "article_title",
     "journal_title",
@@ -91,3 +98,43 @@ def fields2msg(**kwargs):
 @flatreq(fields=FIELDS)
 async def from_fields(request, **kwargs):
     return response.json({"country": model.predict(fields2msg(**kwargs))})
+
+
+def clea2fields_gen(clea_data):
+    common_data = {path[-1]: nestget_list(clea_data, path)
+                   for path in CLEA_COMMON_PATHS}
+    for aidx, cidx in clea_data["aff_contrib_pairs"]:
+        aff_data = clea_data["aff"][aidx] if aidx >= 0 else {}
+        contrib_data = clea_data["contrib"][cidx] if cidx >= 0 else {}
+        row_data = {**common_data, **aff_data, **contrib_data}
+        flat_data = {k: " ".join(v) for k, v in row_data.items()}
+        yield {"idx_pair": (aidx, cidx), **flat_data}
+
+
+def xml2clea(xml_data):
+    art = Article(io.BytesIO(xml_data))
+    return {**art.data_full, "aff_contrib_pairs": art.aff_contrib_full_indices}
+
+
+@bp.route("/xml", methods=["POST"])
+async def from_xml(request):
+    if request.content_type == "application/json":
+        clea_data = request.json  # Clea CLI output
+    elif request.content_type == "text/xml":
+        clea_data = xml2clea(request.body)
+    elif request.content_type.startswith("multipart/form-data"):
+        if "xml" not in request.files:
+            return response.json({"error": "missing_xml_file"}, status=400)
+        if len(request.files["xml"]) != 1:
+            return response.json({"error": "multiple_xml_file"}, status=400)
+        clea_data = xml2clea(request.files["xml"][0].body)
+    else:
+        return response.json({"error": "invalid_content_type"}, status=415)
+    return response.json({"result": [
+        {
+            "country": model.predict(fields2msg(**fields)),
+            "country_input": "|".join(nestget_list(fields,
+                                                   "addr_country_code")),
+            "aff_contrib_pair": fields["idx_pair"],
+        } for fields in clea2fields_gen(clea_data)
+    ]})

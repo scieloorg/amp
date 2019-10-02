@@ -50,7 +50,13 @@ class Classifier:
         return corpus2csc([self.msg2bow(msg)], num_terms=self.num_terms)
 
     def predict(self, msg):
-        return self.rf_model.predict(self.msg2csc(msg).T @ self.u)[0]
+        result = self.rf_model.predict_proba(self.msg2csc(msg).T @ self.u)
+        pairs = sorted(((probability, code)
+                        for probability, code
+                        in zip(result.ravel(), self.rf_model.classes_)
+                        if probability > 0),
+                       reverse=True)
+        return [{"c": code, "p": probability} for probability, code in pairs]
 
 
 model = Classifier(

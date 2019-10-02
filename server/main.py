@@ -2,11 +2,12 @@
 """Article Metadata Predictor"""
 from sanic import Sanic
 
-from . import common
+from . import common, w2v1
 
 
 app = Sanic(__name__)
 app.blueprint(common.bp)
+app.blueprint(w2v1.bp)
 
 
 if __name__ == "__main__":
